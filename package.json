@@ -1,0 +1,19 @@
+{
+  "name": "yongshian-ai-council",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first AI discussion orchestrator prototype.",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "build": "node scripts/build-static.mjs",
+    "icons": "node scripts/create-icons.mjs",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "providers": {
+    "openai": {
+      "name": "OpenAI",
+      "adapter": "openai-compatible",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyPage": "https://platform.openai.com/api-keys",
+      "usagePage": "https://platform.openai.com/usage",
+      "keyLabel": "OpenAI API key",
+      "local": false,
+      "quota": "Usage and quota are account-specific. Open the provider usage page for exact quota."
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "adapter": "anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "apiKeyPage": "https://console.anthropic.com/settings/keys",
+      "usagePage": "https://console.anthropic.com/settings/usage",
+      "keyLabel": "Anthropic API key",
+      "local": false,
+      "quota": "Claude models share this provider key. Usage is account-specific."
+    },
+    "google": {
+      "name": "Google",
+      "adapter": "google-gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "apiKeyPage": "https://aistudio.google.com/app/apikey",
+      "usagePage": "https://aistudio.google.com/app/usage",
+      "keyLabel": "Google AI Studio API key",
+      "local": false,
+      "quota": "Gemini quota is provider/account dependent."
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "adapter": "openai-compatible",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKeyPage": "https://platform.deepseek.com/api_keys",
+      "usagePage": "https://platform.deepseek.com/usage",
+      "keyLabel": "DeepSeek API key",
+      "local": false,
+      "quota": "Usage visibility depends on DeepSeek account APIs."
+    },
+    "ollama": {
+      "name": "Ollama",
+      "adapter": "ollama",
+      "baseUrl": "http://localhost:11434",
+      "apiKeyPage": "https://ollama.com/download",
+      "usagePage": "http://localhost:11434",
+      "keyLabel": "Local runtime",
+      "local": true,
+      "quota": "Local runtime. Quota means device capacity and installed model availability."
+    }
+  },
+  "models": [
+    {
+      "id": "openai:gpt-4o-mini",
+      "provider": "openai",
+      "apiModel": "gpt-4o-mini",
+      "name": "GPT-4o mini",
+      "detailName": "OpenAI GPT-4o mini",
+      "rank": 1,
+      "selected": true,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.0022,
+      "summarizer": true
+    },
+    {
+      "id": "google:gemini-2.5-pro",
+      "provider": "google",
+      "apiModel": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "detailName": "Google Gemini 2.5 Pro",
+      "rank": 2,
+      "selected": true,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.0026,
+      "summarizer": false
+    },
+    {
+      "id": "anthropic:claude-opus-4-8",
+      "provider": "anthropic",
+      "apiModel": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "detailName": "Anthropic Claude Opus 4.8",
+      "rank": 3,
+      "selected": false,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.0065,
+      "summarizer": false
+    },
+    {
+      "id": "anthropic:claude-sonnet-4-6",
+      "provider": "anthropic",
+      "apiModel": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
+      "detailName": "Anthropic Claude Sonnet 4.6",
+      "rank": 4,
+      "selected": true,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.0031,
+      "summarizer": false
+    },
+    {
+      "id": "deepseek:deepseek-v4-flash",
+      "provider": "deepseek",
+      "apiModel": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "detailName": "DeepSeek V4 Flash",
+      "rank": 5,
+      "selected": true,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.0012,
+      "summarizer": false
+    },
+    {
+      "id": "ollama:gemma4-26b",
+      "provider": "ollama",
+      "apiModel": "gemma4:26b",
+      "name": "Ollama Gemma 4 26B",
+      "detailName": "Ollama Gemma 4 26B local model",
+      "rank": 6,
+      "selected": true,
+      "requiresKey": false,
+      "estimatedRoundCost": 0,
+      "summarizer": false
+    },
+    {
+      "id": "ollama:mistral",
+      "provider": "ollama",
+      "apiModel": "mistral:latest",
+      "name": "Ollama Mistral",
+      "detailName": "Ollama Mistral local model",
+      "rank": 7,
+      "selected": false,
+      "requiresKey": false,
+      "estimatedRoundCost": 0,
+      "summarizer": false
+    },
+    {
+      "id": "openai:gpt-5.4-mini",
+      "provider": "openai",
+      "apiModel": "gpt-5.4-mini",
+      "name": "GPT-5.4 mini",
+      "detailName": "OpenAI GPT-5.4 mini",
+      "rank": 8,
+      "selected": false,
+      "requiresKey": true,
+      "estimatedRoundCost": 0.004,
+      "summarizer": true
+    }
+  ]
+}
