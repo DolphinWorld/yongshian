@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2"
+  },
+  "dependencies": {
+    "qrcode-generator": "^1.4.4"
   }
 }

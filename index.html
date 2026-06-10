@@ -38,6 +38,8 @@
         </div>
 
         <div class="settings-body" id="settingsBody">
+          <div class="setup-warnings hidden" id="setupWarnings" role="status" aria-live="polite"></div>
+
           <label class="field">
             <span>Summarizer</span>
             <select id="summarizerSelect"></select>
@@ -63,6 +65,22 @@
           </div>
           <div class="ollama-status" id="ollamaStatus">Ollama not checked yet</div>
           <div class="model-list" id="modelList"></div>
+
+          <section class="private-access" aria-label="Private access setup">
+            <div class="model-list-header">
+              <span>Private Access</span>
+              <button id="tailscaleRefreshButton" class="tiny-button" type="button">Check</button>
+            </div>
+            <div class="private-access-status" id="tailscaleStatus">Tailscale not checked yet</div>
+            <div class="private-access-actions">
+              <a id="tailscaleInstallMacLink" class="tiny-link" href="https://tailscale.com/download/mac" target="_blank" rel="noreferrer">Install Tailscale</a>
+              <button id="tailscaleServeButton" class="tiny-button" type="button">Share App</button>
+            </div>
+            <div class="private-access-qr hidden" id="privateAccessQrPanel">
+              <div id="privateAccessQr" class="private-access-qr-code"></div>
+              <p id="privateAccessUrl" class="private-access-url"></p>
+            </div>
+          </section>
         </div>
       </aside>
 
@@ -124,6 +142,7 @@
       </footer>
     </main>
 
+    <script src="src/vendor/qrcode.js"></script>
     <script src="src/app.js" type="module"></script>
   </body>
 </html>

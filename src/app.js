@@ -5,6 +5,7 @@ let state;
 const STORAGE_KEY = "ai-emergent-provider-api-keys";
 const LEGACY_STORAGE_KEY = "ai-emergent-provider-keys";
 const REQUEST_TIMEOUT_MS = 120000;
+const PROVIDER_KEY_PLACEHOLDER = "__PROVIDER_API_KEY__";
 
 const elements = {
   settingsPanel: document.querySelector("#settingsPanel"),
@@ -13,12 +14,20 @@ const elements = {
   settingsBody: document.querySelector("#settingsBody"),
   settingsSummary: document.querySelector("#settingsSummary"),
   settingsIndicator: document.querySelector("#settingsIndicator"),
+  setupWarnings: document.querySelector("#setupWarnings"),
   summarizerSelect: document.querySelector("#summarizerSelect"),
   roundsInput: document.querySelector("#roundsInput"),
   biasSelect: document.querySelector("#biasSelect"),
   modelList: document.querySelector("#modelList"),
   ollamaRefreshButton: document.querySelector("#ollamaRefreshButton"),
   ollamaStatus: document.querySelector("#ollamaStatus"),
+  tailscaleRefreshButton: document.querySelector("#tailscaleRefreshButton"),
+  tailscaleServeButton: document.querySelector("#tailscaleServeButton"),
+  tailscaleInstallMacLink: document.querySelector("#tailscaleInstallMacLink"),
+  tailscaleStatus: document.querySelector("#tailscaleStatus"),
+  privateAccessQrPanel: document.querySelector("#privateAccessQrPanel"),
+  privateAccessQr: document.querySelector("#privateAccessQr"),
+  privateAccessUrl: document.querySelector("#privateAccessUrl"),
   estimatedCost: document.querySelector("#estimatedCost"),
   roundDelta: document.querySelector("#roundDelta"),
   processTotal: document.querySelector("#processTotal"),
@@ -74,7 +83,13 @@ function saveProviderKeys() {
 }
 
 function getProviderApiKey(providerId) {
-  return state.providerKeys[providerId]?.trim() || "";
+  const value = state.providerKeys[providerId];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function hasProviderKey(providerId) {
+  const value = state.providerKeys[providerId];
+  return typeof value === "string" ? Boolean(value.trim()) : Boolean(value);
 }
 
 function isOllamaModel(model) {
@@ -90,7 +105,7 @@ function hasProviderAccess(model) {
     }
     return true;
   }
-  return !model.requiresKey || Boolean(getProviderApiKey(model.provider));
+  return !model.requiresKey || hasProviderKey(model.provider);
 }
 
 function selectedModels() {
@@ -98,17 +113,33 @@ function selectedModels() {
 }
 
 function selectedProviderWarnings() {
-  const warningProviders = new Set();
+  return selectedSetupWarnings().map((warning) => warning.providerId);
+}
+
+function selectedSetupWarnings() {
+  const warnings = new Map();
+  const addWarning = (providerId, message, action = "Open Settings to fix it.") => {
+    if (!warnings.has(providerId)) {
+      warnings.set(providerId, { providerId, message, action });
+    }
+  };
+
   for (const model of selectedModels()) {
     if (!hasProviderAccess(model)) {
-      warningProviders.add(model.provider);
+      const provider = providers[model.provider];
+      if (provider?.local) {
+        addWarning(model.provider, `${model.name} is selected but not ready.`, `${model.apiModel || model.name} may need to be installed or Ollama may need to be running.`);
+      } else {
+        addWarning(model.provider, `${provider?.name || model.provider} API key is missing.`, `Save ${provider?.keyLabel || "the provider key"} to use ${model.name}.`);
+      }
     }
   }
   const summarizer = selectedSummarizer();
   if (summarizer && !hasProviderAccess(summarizer)) {
-    warningProviders.add(summarizer.provider);
+    const provider = providers[summarizer.provider];
+    addWarning(summarizer.provider, `${provider?.name || summarizer.provider} API key is missing for the summarizer.`, `Save ${provider?.keyLabel || "the provider key"} or choose another summarizer.`);
   }
-  return [...warningProviders];
+  return [...warnings.values()];
 }
 
 function selectedSummarizer() {
@@ -236,14 +267,82 @@ function renderOllamaStatus() {
   }
 }
 
+function renderTailscaleStatus() {
+  if (!elements.tailscaleStatus) return;
+
+  elements.tailscaleStatus.textContent = state.tailscale.message;
+  elements.tailscaleStatus.classList.toggle("ok", state.tailscale.status === "ready");
+  elements.tailscaleStatus.classList.toggle("warning", state.tailscale.status === "missing" || state.tailscale.status === "error");
+
+  if (elements.tailscaleRefreshButton) {
+    elements.tailscaleRefreshButton.disabled = state.tailscale.status === "checking" || state.tailscale.status === "sharing";
+    elements.tailscaleRefreshButton.textContent = state.tailscale.status === "checking" ? "Checking..." : "Check";
+  }
+
+  if (elements.tailscaleServeButton) {
+    elements.tailscaleServeButton.disabled =
+      state.tailscale.status === "missing" ||
+      state.tailscale.status === "checking" ||
+      state.tailscale.status === "sharing";
+    elements.tailscaleServeButton.textContent = state.tailscale.status === "sharing" ? "Sharing..." : "Share App";
+  }
+
+  elements.tailscaleInstallMacLink?.classList.toggle("hidden", state.tailscale.installed);
+
+  renderPrivateAccessQr();
+}
+
+function renderPrivateAccessQr() {
+  const url = state.tailscale.url;
+  if (!elements.privateAccessQrPanel || !elements.privateAccessQr || !elements.privateAccessUrl) return;
+
+  elements.privateAccessQrPanel.classList.toggle("hidden", !url);
+  elements.privateAccessUrl.textContent = url || "";
+  elements.privateAccessQr.innerHTML = "";
+
+  if (!url) return;
+  if (typeof window.qrcode !== "function") {
+    elements.privateAccessQr.textContent = "QR generator unavailable. Open the URL below from your iPhone.";
+    return;
+  }
+
+  const qr = window.qrcode(0, "M");
+  qr.addData(url);
+  qr.make();
+  elements.privateAccessQr.innerHTML = qr.createSvgTag({
+    cellSize: 4,
+    margin: 2,
+    scalable: true
+  });
+}
+
 function renderSettingsState() {
-  const warnings = selectedProviderWarnings();
+  const warnings = selectedSetupWarnings();
   const selectedCount = selectedModels().length;
   const warningText = warnings.length === 0 ? "No warnings" : `${warnings.length} setup warning${warnings.length > 1 ? "s" : ""}`;
 
   elements.settingsSummary.textContent = `${selectedCount} models selected · ${warningText}`;
   elements.settingsIndicator.textContent = warnings.length > 0 ? String(warnings.length) : "⚙";
+  elements.settingsIndicator.title = warnings.length > 0 ? warnings.map((warning) => warning.message).join("\n") : "Settings";
   elements.settingsIndicator.classList.toggle("active", warnings.length > 0);
+  if (elements.setupWarnings) {
+    elements.setupWarnings.classList.toggle("hidden", warnings.length === 0);
+    elements.setupWarnings.innerHTML = warnings.length === 0
+      ? ""
+      : `
+        <strong>Setup warnings</strong>
+        <ul>
+          ${warnings
+            .map((warning) => `
+              <li>
+                <span>${escapeHtml(warning.message)}</span>
+                <small>${escapeHtml(warning.action)}</small>
+              </li>
+            `)
+            .join("")}
+        </ul>
+      `;
+  }
   elements.settingsPanel.classList.toggle("collapsed", state.settingsCollapsed);
   elements.workspace.classList.toggle("settings-collapsed", state.settingsCollapsed);
   elements.settingsToggle.setAttribute("aria-expanded", String(!state.settingsCollapsed));
@@ -253,6 +352,7 @@ function render() {
   renderModelList();
   renderCosts();
   renderOllamaStatus();
+  renderTailscaleStatus();
   renderSettingsState();
 }
 
@@ -354,6 +454,200 @@ async function httpRequest(url, options, signal) {
   };
 }
 
+async function providerHttpRequest(providerId, url, options) {
+  const request = {
+    provider_id: providerId,
+    url,
+    method: options.method || "GET",
+    headers: options.headers || {},
+    body: options.body || null
+  };
+  const tauriInvoke = window.__TAURI__?.core?.invoke;
+  if (tauriInvoke) {
+    const response = await tauriInvoke("provider_request", { request });
+    return {
+      status: response.status,
+      statusText: response.status_text,
+      body: response.body
+    };
+  }
+
+  const response = await fetch("/api/provider-request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html") && getProviderApiKey(providerId)) {
+    return directProviderHttpRequest(providerId, url, options);
+  }
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    body: await response.text()
+  };
+}
+
+async function directProviderHttpRequest(providerId, url, options) {
+  const key = getProviderApiKey(providerId);
+  if (!key) {
+    throw new Error(`Missing API key for ${providers[providerId]?.name || providerId}.`);
+  }
+  const keyedUrl = url.replace(PROVIDER_KEY_PLACEHOLDER, encodeURIComponent(key));
+  const keyedHeaders = Object.fromEntries(
+    Object.entries(options.headers || {}).map(([name, value]) => [
+      name,
+      String(value).replace(PROVIDER_KEY_PLACEHOLDER, key)
+    ])
+  );
+  return httpRequest(keyedUrl, {
+    ...options,
+    headers: keyedHeaders
+  });
+}
+
+async function fetchProviderJson(providerId, url, options) {
+  const response = await providerHttpRequest(providerId, url, options);
+  const text = response.body;
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = { raw: text };
+  }
+  if (response.status < 200 || response.status >= 300) {
+    const message = payload.error?.message || payload.message || payload.raw || `${response.status} ${response.statusText || ""}`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+async function syncProviderKeyStatuses({ migrateLocalKeys = false } = {}) {
+  const tauriInvoke = window.__TAURI__?.core?.invoke;
+  const localKeys = loadProviderKeys();
+
+  if (migrateLocalKeys && tauriInvoke) {
+    await Promise.all(
+      Object.entries(localKeys)
+        .filter(([, key]) => typeof key === "string" && key.trim())
+        .map(([providerId, key]) => tauriInvoke("save_provider_key", { providerId, key }))
+    );
+  }
+
+  let statuses = {};
+  if (tauriInvoke) {
+    statuses = await tauriInvoke("provider_key_statuses");
+  } else {
+    const response = await fetch("/api/provider-key-statuses", { cache: "no-store" });
+    const contentType = response.headers.get("content-type") || "";
+    if (response.ok && contentType.includes("application/json")) {
+      statuses = await response.json();
+    } else {
+      statuses = Object.fromEntries(
+        Object.entries(localKeys).map(([providerId, key]) => [providerId, Boolean(key)])
+      );
+    }
+  }
+
+  for (const providerId of Object.keys(providers)) {
+    if (providers[providerId].local) continue;
+    state.providerKeys[providerId] = Boolean(statuses[providerId]);
+  }
+  render();
+}
+
+async function saveProviderKey(providerId, key) {
+  const tauriInvoke = window.__TAURI__?.core?.invoke;
+  if (tauriInvoke) {
+    await tauriInvoke("save_provider_key", { providerId, key });
+  }
+  state.providerKeys[providerId] = key;
+  saveProviderKeys();
+}
+
+async function invokeTauri(command, args = {}) {
+  const tauriInvoke = window.__TAURI__?.core?.invoke;
+  if (!tauriInvoke) {
+    throw new Error("Open the desktop app to manage Tailscale private access.");
+  }
+  return tauriInvoke(command, args);
+}
+
+function errorMessage(error) {
+  if (typeof error === "string") return error;
+  if (error?.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function applyTailscaleInfo(info, { exposeUrl = false } = {}) {
+  state.tailscale.installed = Boolean(info.installed);
+  state.tailscale.authenticated = Boolean(info.authenticated);
+  state.tailscale.ip4 = info.ip4 || "";
+  state.tailscale.dnsName = info.dns_name || "";
+  state.tailscale.url = exposeUrl ? info.serve_url || "" : "";
+  if (!info.installed) {
+    state.tailscale.status = "missing";
+  } else if (!info.authenticated) {
+    state.tailscale.status = "error";
+  } else {
+    state.tailscale.status = "ready";
+  }
+  state.tailscale.message = info.message || "Tailscale status updated.";
+}
+
+async function refreshTailscaleStatus({ silent = false } = {}) {
+  state.tailscale.status = "checking";
+  state.tailscale.message = "Checking Tailscale...";
+  render();
+
+  try {
+    applyTailscaleInfo(await invokeTauri("tailscale_info"));
+  } catch (error) {
+    const message = errorMessage(error);
+    state.tailscale.status = "error";
+    state.tailscale.message = message;
+    state.tailscale.url = "";
+    if (!silent) {
+      elements.activityPanel.classList.remove("hidden");
+      setProgress(`Private access: ${message}`, 0);
+    }
+  }
+
+  render();
+}
+
+async function startTailscaleServe() {
+  state.tailscale.status = "sharing";
+  state.tailscale.message = "Configuring Tailscale Serve for this app...";
+  render();
+  document.body.classList.add("busy");
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  try {
+    applyTailscaleInfo(await invokeTauri("tailscale_serve"), { exposeUrl: true });
+    if (state.tailscale.url) {
+      state.tailscale.message = "Private access ready. Scan the QR code from your iPhone after Tailscale is connected.";
+      elements.activityPanel.classList.remove("hidden");
+      setProgress("Private access ready. Scan the QR code from your iPhone.", 100);
+    }
+  } catch (error) {
+    const message = errorMessage(error);
+    state.tailscale.status = "error";
+    state.tailscale.message = message;
+    state.tailscale.url = "";
+    elements.activityPanel.classList.remove("hidden");
+    setProgress(`Private access failed: ${message}`, 0);
+  } finally {
+    document.body.classList.remove("busy");
+  }
+
+  render();
+}
+
 function formatOllamaModelName(name) {
   const base = name.replace(":latest", "");
   return base
@@ -449,12 +743,11 @@ async function syncOllamaModels({ silent = false } = {}) {
 
 async function callOpenAICompatible(model, systemPrompt, userPrompt) {
   const provider = providers[model.provider];
-  const key = getProviderApiKey(model.provider);
-  const payload = await fetchJson(`${provider.baseUrl}/chat/completions`, {
+  const payload = await fetchProviderJson(model.provider, `${provider.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`
+      Authorization: `Bearer ${PROVIDER_KEY_PLACEHOLDER}`
     },
     body: JSON.stringify({
       model: model.apiModel,
@@ -471,12 +764,11 @@ async function callOpenAICompatible(model, systemPrompt, userPrompt) {
 
 async function callAnthropic(model, systemPrompt, userPrompt) {
   const provider = providers[model.provider];
-  const key = getProviderApiKey(model.provider);
-  const payload = await fetchJson(`${provider.baseUrl}/messages`, {
+  const payload = await fetchProviderJson(model.provider, `${provider.baseUrl}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key,
+      "x-api-key": PROVIDER_KEY_PLACEHOLDER,
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
@@ -491,8 +783,7 @@ async function callAnthropic(model, systemPrompt, userPrompt) {
 
 async function callGemini(model, systemPrompt, userPrompt) {
   const provider = providers[model.provider];
-  const key = encodeURIComponent(getProviderApiKey(model.provider));
-  const payload = await fetchJson(`${provider.baseUrl}/models/${model.apiModel}:generateContent?key=${key}`, {
+  const payload = await fetchProviderJson(model.provider, `${provider.baseUrl}/models/${model.apiModel}:generateContent?key=${PROVIDER_KEY_PLACEHOLDER}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -861,6 +1152,11 @@ function bindEvents() {
   elements.settingsToggle.addEventListener("click", () => {
     state.settingsCollapsed = !state.settingsCollapsed;
     renderSettingsState();
+    if (!state.settingsCollapsed && selectedSetupWarnings().length > 0) {
+      requestAnimationFrame(() => {
+        elements.setupWarnings?.scrollIntoView({ block: "nearest" });
+      });
+    }
   });
 
   elements.modelList.addEventListener("change", (event) => {
@@ -874,7 +1170,7 @@ function bindEvents() {
     render();
   });
 
-  elements.modelList.addEventListener("click", (event) => {
+  elements.modelList.addEventListener("click", async (event) => {
     const saveButton = event.target.closest("[data-save-key]");
     const changeButton = event.target.closest("[data-change-key]");
     const cancelButton = event.target.closest("[data-cancel-key]");
@@ -884,9 +1180,9 @@ function bindEvents() {
       const providerId = saveButton.dataset.saveKey;
       const input = elements.modelList.querySelector(`[data-provider-key="${providerId}"]`);
       if (input?.value.trim()) {
-        state.providerKeys[providerId] = input.value.trim();
+        await saveProviderKey(providerId, input.value.trim());
         state.editingProviderKeys.delete(providerId);
-        saveProviderKeys();
+        await syncProviderKeyStatuses();
         render();
       }
       return;
@@ -915,6 +1211,12 @@ function bindEvents() {
   elements.summarizerSelect.addEventListener("change", render);
   elements.ollamaRefreshButton?.addEventListener("click", () => {
     syncOllamaModels();
+  });
+  elements.tailscaleRefreshButton?.addEventListener("click", () => {
+    refreshTailscaleStatus();
+  });
+  elements.tailscaleServeButton?.addEventListener("click", () => {
+    startTailscaleServe();
   });
   elements.runButton.addEventListener("click", runDiscussion);
   elements.clearButton.addEventListener("click", () => {
@@ -948,6 +1250,15 @@ async function init() {
         status: "unknown",
         message: "Ollama not checked yet"
       },
+      tailscale: {
+        status: "unknown",
+        message: "Tailscale not checked yet",
+        installed: false,
+        authenticated: false,
+        ip4: "",
+        dnsName: "",
+        url: ""
+      },
       totalCost: 0,
       lastRoundCost: 0,
       sessionTurns: [],
@@ -956,7 +1267,11 @@ async function init() {
     renderSummarizerOptions();
     render();
     bindEvents();
+    syncProviderKeyStatuses({ migrateLocalKeys: true }).catch((error) => {
+      console.warn("Provider key status sync failed", error);
+    });
     syncOllamaModels({ silent: true });
+    refreshTailscaleStatus({ silent: true });
   } catch (error) {
     elements.runState.textContent = "Config error";
     elements.activityPanel.classList.remove("hidden");
