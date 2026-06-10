@@ -2,6 +2,8 @@
 
 First prototype for a local-first app that orchestrates discussion across multiple AI vendors and models.
 
+Yongshian is pronounced like "Yong Xian".
+
 ## What works in this version
 
 - Collapsible settings panel for model selection, summarizer model, max rounds, and bias control.
